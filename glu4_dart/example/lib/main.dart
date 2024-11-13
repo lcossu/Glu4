@@ -5,6 +5,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glu4_dart/glu4_dart.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 void main() {
   runApp(const MyApp());
@@ -21,6 +22,7 @@ class _MyAppState extends State<MyApp> {
   List<double?> glucose = [];
   List<double?> pred = [];
   int pH = 5;
+  final Uri _url = Uri.parse('https://github.com/lcossu/Glu4');
 
   @override
   void initState() {
@@ -57,159 +59,174 @@ class _MyAppState extends State<MyApp> {
             style: Theme.of(context).textTheme.displayMedium,
           ),
         ),
-        body: DefaultTextStyle(
-          style: textStyle,
-          child: Center(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  constraints: BoxConstraints(
-                      maxHeight: MediaQuery.of(context).size.height / 2),
-                  child: AspectRatio(
-                    aspectRatio: 16 / 9,
-                    child: Stack(children: [
-                      Positioned(
-                        right: 1,
-                        child: MenuAnchor(
-                          builder: (BuildContext context,
-                              MenuController controller, Widget? child) {
-                            return IconButton(
-                              onPressed: () {
-                                if (controller.isOpen) {
-                                  controller.close();
-                                } else {
-                                  controller.open();
-                                }
+        body: Stack(
+          children: [
+            Align(
+                alignment: Alignment.topCenter,
+                child: Text(
+                  'Discover the code at: github.com/lcossu/Glu4',
+                  style: Theme.of(context).textTheme.bodyLarge,
+                  textAlign: TextAlign.center,
+                )),
+            DefaultTextStyle(
+              style: textStyle,
+              child: Center(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      constraints: BoxConstraints(
+                          maxHeight: MediaQuery.of(context).size.height / 2),
+                      child: AspectRatio(
+                        aspectRatio: 16 / 9,
+                        child: Stack(children: [
+                          Positioned(
+                            right: 1,
+                            child: MenuAnchor(
+                              builder: (BuildContext context,
+                                  MenuController controller, Widget? child) {
+                                return IconButton(
+                                  onPressed: () {
+                                    if (controller.isOpen) {
+                                      controller.close();
+                                    } else {
+                                      controller.open();
+                                    }
+                                  },
+                                  icon: const Icon(Icons.settings),
+                                  tooltip: 'Show settings',
+                                );
                               },
-                              icon: const Icon(Icons.settings),
-                              tooltip: 'Show settings',
-                            );
-                          },
-                          menuChildren: [
-                            MenuItemButton(
-                              onPressed: () => null,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text('PH: $pH'),
-                                  SizedBox(
-                                    width: 200,
-                                    child: Slider.adaptive(
-                                        label: pH.toString(),
-                                        value: pH.toDouble(),
-                                        min: 1,
-                                        max: 10,
-                                        divisions: 11,
-                                        onChanged: (newp) => setState(() {
-                                              pH = newp.round();
-                                              pred = List.filled(
-                                                  growable: true,
-                                                  glucose.length,
-                                                  null);
-                                              prediction.predH = newp.round();
-                                            })),
-                                  )
-                                ],
-                              ),
+                              menuChildren: [
+                                MenuItemButton(
+                                  onPressed: () => null,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text('PH: $pH'),
+                                      SizedBox(
+                                        width: 200,
+                                        child: Slider.adaptive(
+                                            label: pH.toString(),
+                                            value: pH.toDouble(),
+                                            min: 1,
+                                            max: 10,
+                                            divisions: 11,
+                                            onChanged: (newp) => setState(() {
+                                                  pH = newp.round();
+                                                  pred = List.filled(
+                                                      growable: true,
+                                                      glucose.length,
+                                                      null);
+                                                  prediction.predH =
+                                                      newp.round();
+                                                })),
+                                      )
+                                    ],
+                                  ),
+                                ),
+                                MenuItemButton(
+                                  onPressed: () => null,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text('TH: ${prediction.alarmTh}'),
+                                      SizedBox(
+                                        width: 200,
+                                        child: Slider.adaptive(
+                                            label:
+                                                prediction.alarmTh.toString(),
+                                            value:
+                                                prediction.alarmTh.toDouble(),
+                                            min: 50,
+                                            max: 100,
+                                            divisions: 51,
+                                            onChanged: (newp) => setState(() {
+                                                  prediction.alarmTh =
+                                                      newp.round();
+                                                })),
+                                      )
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                            MenuItemButton(
-                              onPressed: () => null,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text('TH: ${prediction.alarmTh}'),
-                                  SizedBox(
-                                    width: 200,
-                                    child: Slider.adaptive(
-                                        label: prediction.alarmTh.toString(),
-                                        value: prediction.alarmTh.toDouble(),
-                                        min: 50,
-                                        max: 100,
-                                        divisions: 51,
-                                        onChanged: (newp) => setState(() {
-                                              prediction.alarmTh = newp.round();
-                                            })),
-                                  )
-                                ],
-                              ),
-                            ),
+                          ),
+                          Chart(
+                            glucose: glucose,
+                            prediction: pred,
+                            pH: pH,
+                            th: prediction.alarmTh,
+                          ),
+                        ]),
+                      ),
+                    ),
+                    spacerSmall,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        Row(
+                          children: [
+                            const Text('Current glucose level:'),
+                            Text(glucose.isEmpty
+                                ? ''
+                                : glucose.last != null
+                                    ? glucose.last!.toStringAsFixed(2)
+                                    : 'Null'),
                           ],
                         ),
-                      ),
-                      Chart(
-                        glucose: glucose,
-                        prediction: pred,
-                        pH: pH,
-                        th: prediction.alarmTh,
-                      ),
-                    ]),
-                  ),
-                ),
-                spacerSmall,
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    Row(
-                      children: [
-                        const Text('Current glucose level:'),
-                        Text(glucose.isEmpty
-                            ? ''
-                            : glucose.last != null
-                                ? glucose.last!.toStringAsFixed(2)
-                                : 'Null'),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text('Predicted glucose at T+$pH: '),
+                            Text(pred.isEmpty
+                                ? ''
+                                : pred.last != null
+                                    ? pred.last!.toStringAsFixed(2)
+                                    : 'Null'),
+                            prediction.hasAlarm()
+                                ? const Icon(
+                                    Icons.warning_amber_rounded,
+                                    size: 40,
+                                    color: Colors.red,
+                                  )
+                                : Container(),
+                          ],
+                        ),
                       ],
                     ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text('Predicted glucose at T+$pH: '),
-                        Text(pred.isEmpty
-                            ? ''
-                            : pred.last != null
-                                ? pred.last!.toStringAsFixed(2)
-                                : 'Null'),
-                        prediction.hasAlarm()
-                            ? const Icon(
-                                Icons.warning_amber_rounded,
-                                size: 40,
-                                color: Colors.red,
-                              )
-                            : Container(),
-                      ],
+                    spacerSmall,
+                    const Text('Insert next glucose value:'),
+                    Focus(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                              width: 100,
+                              child: TextField(
+                                onSubmitted: (_) => doprediction(),
+                                controller: _controller,
+                                focusNode: _focusNode,
+                                autofocus: true,
+                              )),
+                          const Text('mg/dL'),
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: ElevatedButton(
+                                onPressed: () {
+                                  doprediction();
+                                },
+                                child: const Text('Predict!')),
+                          )
+                        ],
+                      ),
                     ),
                   ],
                 ),
-                spacerSmall,
-                const Text('Insert next glucose value:'),
-                Focus(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SizedBox(
-                          width: 100,
-                          child: TextField(
-                            onSubmitted: (_) => doprediction(),
-                            controller: _controller,
-                            focusNode: _focusNode,
-                            autofocus: true,
-                          )),
-                      const Text('mg/dL'),
-                      Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: ElevatedButton(
-                            onPressed: () {
-                              doprediction();
-                            },
-                            child: const Text('Predict!')),
-                      )
-                    ],
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
