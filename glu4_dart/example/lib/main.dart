@@ -1,6 +1,9 @@
+import 'dart:math';
+
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:glu4_dart/glu4_dart.dart';
 
 void main() {
@@ -17,7 +20,7 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   List<double?> glucose = [];
   List<double?> pred = [];
-  final int pH = 4;
+  int pH = 5;
 
   @override
   void initState() {
@@ -37,9 +40,11 @@ class _MyAppState extends State<MyApp> {
     const spacerSmall = SizedBox(height: 10);
 
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       home: Scaffold(
         floatingActionButton: FloatingActionButton(
           child: const Icon(Icons.restart_alt),
+          tooltip: 'Reset',
           onPressed: () => setState(() {
             glucose = [];
             pred = [];
@@ -47,7 +52,10 @@ class _MyAppState extends State<MyApp> {
           }),
         ),
         appBar: AppBar(
-          title: const Text('Glu4: predict your glucose'),
+          title: Text(
+            'Glu4: predict your glucose',
+            style: Theme.of(context).textTheme.displayMedium,
+          ),
         ),
         body: DefaultTextStyle(
           style: textStyle,
@@ -61,40 +69,118 @@ class _MyAppState extends State<MyApp> {
                       maxHeight: MediaQuery.of(context).size.height / 2),
                   child: AspectRatio(
                     aspectRatio: 16 / 9,
-                    child: Chart(
-                      glucose: glucose,
-                      prediction: pred,
-                      pH: pH,
-                      th: prediction.alarmTh,
-                    ),
+                    child: Stack(children: [
+                      Positioned(
+                        right: 1,
+                        child: MenuAnchor(
+                          builder: (BuildContext context,
+                              MenuController controller, Widget? child) {
+                            return IconButton(
+                              onPressed: () {
+                                if (controller.isOpen) {
+                                  controller.close();
+                                } else {
+                                  controller.open();
+                                }
+                              },
+                              icon: const Icon(Icons.settings),
+                              tooltip: 'Show settings',
+                            );
+                          },
+                          menuChildren: [
+                            MenuItemButton(
+                              onPressed: () => null,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text('PH: $pH'),
+                                  SizedBox(
+                                    width: 200,
+                                    child: Slider.adaptive(
+                                        label: pH.toString(),
+                                        value: pH.toDouble(),
+                                        min: 1,
+                                        max: 10,
+                                        divisions: 11,
+                                        onChanged: (newp) => setState(() {
+                                              pH = newp.round();
+                                              pred = List.filled(
+                                                  growable: true,
+                                                  glucose.length,
+                                                  null);
+                                              prediction.predH = newp.round();
+                                            })),
+                                  )
+                                ],
+                              ),
+                            ),
+                            MenuItemButton(
+                              onPressed: () => null,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text('TH: ${prediction.alarmTh}'),
+                                  SizedBox(
+                                    width: 200,
+                                    child: Slider.adaptive(
+                                        label: prediction.alarmTh.toString(),
+                                        value: prediction.alarmTh.toDouble(),
+                                        min: 50,
+                                        max: 100,
+                                        divisions: 51,
+                                        onChanged: (newp) => setState(() {
+                                              prediction.alarmTh = newp.round();
+                                            })),
+                                  )
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Chart(
+                        glucose: glucose,
+                        prediction: pred,
+                        pH: pH,
+                        th: prediction.alarmTh,
+                      ),
+                    ]),
                   ),
                 ),
                 spacerSmall,
-                const Text('current glucose level:'),
-                Text(glucose.isEmpty
-                    ? ''
-                    : glucose.last != null
-                        ? glucose.last!.toStringAsFixed(2)
-                        : 'Null'),
-                spacerSmall,
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    const Text('predicted glucose: '),
-                    prediction.hasAlarm()
-                        ? const Icon(
-                            Icons.warning_amber_rounded,
-                            size: 40,
-                            color: Colors.red,
-                          )
-                        : Container(),
+                    Row(
+                      children: [
+                        const Text('Current glucose level:'),
+                        Text(glucose.isEmpty
+                            ? ''
+                            : glucose.last != null
+                                ? glucose.last!.toStringAsFixed(2)
+                                : 'Null'),
+                      ],
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('Predicted glucose at T+$pH: '),
+                        Text(pred.isEmpty
+                            ? ''
+                            : pred.last != null
+                                ? pred.last!.toStringAsFixed(2)
+                                : 'Null'),
+                        prediction.hasAlarm()
+                            ? const Icon(
+                                Icons.warning_amber_rounded,
+                                size: 40,
+                                color: Colors.red,
+                              )
+                            : Container(),
+                      ],
+                    ),
                   ],
                 ),
-                Text(pred.isEmpty
-                    ? ''
-                    : pred.last != null
-                        ? pred.last!.toStringAsFixed(2)
-                        : 'Null'),
                 spacerSmall,
                 const Text('Insert next glucose value:'),
                 Focus(
@@ -131,12 +217,26 @@ class _MyAppState extends State<MyApp> {
 
   void doprediction() {
     setState(() {
+      if (!_checkInput(_controller.text)) return;
       glucose.add(double.tryParse(_controller.text));
       i++;
       _controller.clear();
-      pred.add(prediction.predict(glucose.last));
+      pred.clear();
+      pred.addAll(prediction.predictList(glucose.last).toList());
     });
     _focusNode.requestFocus();
+  }
+}
+
+bool _checkInput(String text) {
+  if (text == '') return true;
+  double? val = double.tryParse(text);
+  if (val == null) return false;
+  if (val < 40) return false;
+  if (val > 400) {
+    return false;
+  } else {
+    return true;
   }
 }
 
@@ -152,11 +252,17 @@ class Chart extends StatelessWidget {
   final List<double?> prediction;
   final int pH;
   final int th;
+  final int maxNStep = 15;
 
   LineChartData get sampleData1 => LineChartData(
         extraLinesData: ExtraLinesData(
           horizontalLines: [
             HorizontalLine(
+              label: HorizontalLineLabel(
+                show: true,
+                alignment: Alignment.topLeft,
+                labelResolver: (p0) => p0.y.toStringAsFixed(1),
+              ),
               y: th.toDouble(),
               strokeWidth: 3,
               dashArray: [20, 10],
@@ -168,7 +274,8 @@ class Chart extends StatelessWidget {
         titlesData: titlesData1,
         borderData: borderData,
         lineBarsData: lineBarsData1,
-        minX: 0,
+        clipData: const FlClipData.all(),
+        minX: max(0, glucose.length + pH + 1 - maxNStep).toDouble(),
         maxX: glucose.length + pH + 1,
         maxY: 400,
         minY: 0,
@@ -183,17 +290,18 @@ class Chart extends StatelessWidget {
           top: const BorderSide(color: Colors.transparent),
         ),
       );
-  LineTouchData get lineTouchData1 => LineTouchData(
+  LineTouchData get lineTouchData1 => const LineTouchData(
         handleBuiltInTouches: true,
         touchTooltipData: LineTouchTooltipData(
-          tooltipBgColor: Colors.blueGrey.withOpacity(0.8),
+          tooltipBgColor: Colors.white,
         ),
       );
 
   FlTitlesData get titlesData1 => FlTitlesData(
         bottomTitles: AxisTitles(
-          sideTitles: bottomTitles,
-        ),
+            sideTitles: bottomTitles,
+            axisNameSize: 30,
+            axisNameWidget: Text('Step')),
         rightTitles: const AxisTitles(
           sideTitles: SideTitles(showTitles: false),
         ),
@@ -201,8 +309,9 @@ class Chart extends StatelessWidget {
           sideTitles: SideTitles(showTitles: false),
         ),
         leftTitles: AxisTitles(
-          sideTitles: leftTitles(),
-        ),
+            sideTitles: leftTitles(),
+            axisNameWidget: Text('mg/dL'),
+            axisNameSize: 40),
       );
 
   List<LineChartBarData> get lineBarsData1 =>
@@ -215,28 +324,36 @@ class Chart extends StatelessWidget {
   LineChartBarData get lineChartBarData2_1 => LineChartBarData(
         isCurved: true,
         curveSmoothness: 0,
-        color: Colors.green.withOpacity(0.5),
+        color: Colors.blue.withOpacity(0.5),
         barWidth: 4,
         isStrokeCapRound: true,
-        dotData: const FlDotData(show: true),
+        dotData: FlDotData(
+          checkToShowDot: (spot, barData) => spot.x != glucose.length - 1,
+          show: true,
+          getDotPainter: (p0, p1, p2, p3) => FlDotCirclePainter(
+              color: p0.y < th ? Colors.red : Colors.blue, strokeWidth: 0),
+        ),
         belowBarData: BarAreaData(show: false),
-        spots: prediction
-            .asMap()
-            .map<int, FlSpot>(
-              (key, value) {
-                if (value == null) {
-                  return MapEntry(key, FlSpot.nullSpot);
-                }
-                return MapEntry(key, FlSpot(key.toDouble() + pH, value));
-              },
-            )
-            .values
-            .toList(),
+        spots: prediction.isEmpty
+            ? []
+            : (prediction..insert(0, glucose.last))
+                .asMap()
+                .map<int, FlSpot>(
+                  (key, value) {
+                    if (value == null) {
+                      return MapEntry(key, FlSpot.nullSpot);
+                    }
+                    return MapEntry(key,
+                        FlSpot(key.toDouble() + glucose.length - 1, value));
+                  },
+                )
+                .values
+                .toList(),
       );
 
   LineChartBarData get lineChartBarData1_1 => LineChartBarData(
-        isCurved: true,
         barWidth: 8,
+        color: Colors.green.withOpacity(0.5),
         isStrokeCapRound: true,
         dotData: const FlDotData(show: true),
         belowBarData: BarAreaData(show: false),
@@ -288,7 +405,7 @@ class Chart extends StatelessWidget {
         getTitlesWidget: leftTitleWidgets,
         showTitles: true,
         interval: 50,
-        reservedSize: 40,
+        reservedSize: 60,
       );
 
   Widget bottomTitleWidgets(double value, TitleMeta meta) {
@@ -334,9 +451,45 @@ class Chart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LineChart(
-      sampleData1,
-      duration: const Duration(milliseconds: 250),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Indicator(text: 'Glucose', color: Colors.green),
+            Indicator(text: 'Prediction', color: Colors.blue),
+          ],
+        ),
+        Expanded(
+          child: LineChart(
+            sampleData1,
+            duration: const Duration(milliseconds: 250),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class Indicator extends StatelessWidget {
+  const Indicator({super.key, required this.text, required this.color});
+  final String text;
+  final Color color;
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Row(
+        children: [
+          Container(
+            width: 10,
+            height: 10,
+            color: color,
+          ),
+          Text(text)
+        ],
+      ),
     );
   }
 }

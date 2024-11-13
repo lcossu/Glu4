@@ -52,14 +52,14 @@ class Prediction {
   }
 
   /// predict the next glucose values up to the prediction horizon step
-  List<double>? predictList(double? glu) {
+  List<double?> predictList(double? glu) {
     _step++;
 
     if (glu == null) {
       _afterNan = true;
       _init();
       _lastpred = null;
-      return null;
+      return List.filled(predH, null);
     }
 
     if (_startup != 0) {
@@ -70,7 +70,7 @@ class Prediction {
         _afterNan = false;
         _startup = _startup - 1;
         _lastpred = null;
-        return null;
+        return List.filled(predH, null);
       }
     }
 
@@ -94,7 +94,7 @@ class Prediction {
     if (_startup != 0) {
       _startup = _startup - 1;
       _lastpred = null;
-      return null;
+      return List.filled(predH, null);
     }
     _lastpred = allpred;
     return allpred;
